@@ -51,7 +51,7 @@ std::vector<std::vector<std::string>> readGeomFromCsv(const char* geoCsvFileName
 /// @brief Creates CSV files from the ROOT simulation and digitization files
 /// @param prefix Path to and name of the ROOT simulation and digitization files
 /// @param outputDir Path to the directory where the CSV files should be stored
-/// @return 0 if the CSV files were created successfully
+/// @return 1 if the CSV files were created successfully
 int makeCSVs(std::string prefix, std::string outputDir)
 {
     // Start timer to measure the elapsed time
@@ -239,5 +239,5 @@ int makeCSVs(std::string prefix, std::string outputDir)
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << " seconds." << std::endl;
-    return 0;
+    return 1;
 }
