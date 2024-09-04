@@ -80,41 +80,8 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
     // ROOT::EnableImplicitMT();
 
     // Create a ROOT data frame for the simulation and digitization files
-    // RDataFrame dfSim ("pndsim", prefix + "_sim.root" );
+    RDataFrame dfSim ("pndsim", prefix + "_sim.root" );
     RDataFrame dfDigi("pndsim", prefix + "_digi.root");
-
-    auto dfTest = dfDigi.Range(10);
-
-    // // Take the sim parameters from the data frame
-    // auto mcTrackPx            = dfSim.Take<RVecD>("MCTrack.fPx"            );
-    // auto mcTrackPy            = dfSim.Take<RVecD>("MCTrack.fPy"            );
-    // auto mcTrackPz            = dfSim.Take<RVecD>("MCTrack.fPz"            );
-    // auto mcTrackStartX        = dfSim.Take<RVecD>("MCTrack.fStartX"        );
-    // auto mcTrackStartY        = dfSim.Take<RVecD>("MCTrack.fStartY"        );
-    // auto mcTrackStartZ        = dfSim.Take<RVecD>("MCTrack.fStartZ"        );
-    // auto mcTrackStartT        = dfSim.Take<RVecD>("MCTrack.fStartT"        );
-    // auto mcTrackGeneratorFlag = dfSim.Take<RVecI>("MCTrack.fGeneratorFlags");
-    // auto mcTrackPdgCode       = dfSim.Take<RVecI>("MCTrack.fPdgCode"       );
-    // auto mcTrackPoints        = dfSim.Take<RVecI>("MCTrack.fPoints"        );
-
-    // auto sttPointX       = dfSim.Take<RVecD>("STTPoint.fX"      );
-    // auto sttPointY       = dfSim.Take<RVecD>("STTPoint.fY"      );
-    // auto sttPointZ       = dfSim.Take<RVecD>("STTPoint.fZ"      );
-    // auto sttPointT       = dfSim.Take<RVecD>("STTPoint.fTime"   );
-    // auto sttPointPx      = dfSim.Take<RVecD>("STTPoint.fPx"     );
-    // auto sttPointPy      = dfSim.Take<RVecD>("STTPoint.fPy"     );
-    // auto sttPointPz      = dfSim.Take<RVecD>("STTPoint.fPz"     );
-    // auto sttPointTrackID = dfSim.Take<RVecI>("STTPoint.fTrackID");
-    
-    // Take the digi parameters from the data frame
-    // auto sttHitRefIndex   = dfDigi.Take<RVecI>("STTHit.fRefIndex"  );
-    // auto sttHitDepCharge  = dfDigi.Take<RVecD>("STTHit.fDepCharge" );
-    // auto sttHitTubeID     = dfDigi.Take<RVecI>("STTHit.fTubeID"    );
-    // auto sttHitDetectorID = dfDigi.Take<RVecI>("STTHit.fDetectorID");
-    // auto sttHitIsochrone  = dfDigi.Take<RVecD>("STTHit.fIsochrone" );
-    // auto sttHitX          = dfDigi.Take<RVecD>("STTHit.fX"         );
-    // auto sttHitY          = dfDigi.Take<RVecD>("STTHit.fY"         );
-    // auto sttHitZ          = dfDigi.Take<RVecD>("STTHit.fZ"         );
 
     std::cout << std::endl;
     std::cout << "Write the data to ROOT file..." << std::endl;
@@ -127,61 +94,186 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
         return 0;
     }
 
+    // Output
+    RVecD v_x, v_y, v_z, v_dep_charge, v_isochrone, v_energy_loss, 
+          v_tx, v_ty, v_tz, v_tT, v_tpx, v_tpy, v_tpz,
+          v_vx, v_vy, v_vz, v_px, v_py, v_pz, v_start_time;
+    
+    RVecI v_hit_id, v_volume_id, v_module_id, v_layer_id, v_sector_id,
+           v_skewed, v_particle_id, v_nhits, v_pdgcode, v_primary, v_particle_num;
+
     TTree* cells     = new TTree("cells"    , "cells");
     TTree* hits      = new TTree("hits"     , "hits");
     TTree* truth     = new TTree("truth"    , "truth");
     TTree* particles = new TTree("particles", "particles");
-
     
-    RVecD sttHitX, sttHitY, sttHitZ, depCharge, isochrone, energyloss;
-    RVecI sttHitRefIndexVec, sttHitVolume_id, sttHitLayer_id, sttHitModule_id, skewed;
-    
-    TBranch* sttHitRefIndexBranch = hits->Branch("hit_id", &sttHitRefIndexVec);
-    TBranch* sttHitXBranch        = hits->Branch("x", &sttHitX);
-    TBranch* sttHitYBranch        = hits->Branch("y", &sttHitY);
-    TBranch* sttHitZBranch        = hits->Branch("z", &sttHitZ);
-    TBranch* volume_idBranch      = hits->Branch("volume_id", &sttHitVolume_id);
-    TBranch* layer_idBranch       = hits->Branch("layer_id", &sttHitLayer_id);
-    TBranch* module_idBranch      = hits->Branch("module_id", &sttHitModule_id);
+    TBranch* b_hits_hit_id    = hits->Branch("hit_id"   , &v_hit_id);
+    TBranch* b_hits_x         = hits->Branch("x"        , &v_x);
+    TBranch* b_hits_y         = hits->Branch("y"        , &v_y);
+    TBranch* b_hits_z         = hits->Branch("z"        , &v_z);
+    TBranch* b_hits_volume_id = hits->Branch("volume_id", &v_volume_id);
+    TBranch* b_hits_layer_id  = hits->Branch("layer_id" , &v_layer_id);
+    TBranch* b_hits_module_id = hits->Branch("module_id", &v_module_id);
 
-    TBranch* sttHitRefIndexBranch = cells->Branch("hit_id", &sttHitRefIndexVec);
-    TBranch* volume_idBranch      = cells->Branch("volume_id", &sttHitVolume_id);
-    TBranch* layer_idBranch       = cells->Branch("layer_id", &sttHitLayer_id);
-    TBranch* module_idBranch      = cells->Branch("module_id", &sttHitModule_id);
-    TBranch* depChargeBranch      = cells->Branch("dep_charge", &depCharge);
-    TBranch* isochroneBranch      = cells->Branch("isochrone", &isochrone);
-    TBranch* energylossBranch     = cells->Branch("energy_loss", &energyloss);
-    TBranch* skewedBranch         = cells->Branch("skewed", &skewed);
+    TBranch* b_cells_hit_id      = cells->Branch("hit_id"     , &v_hit_id);
+    TBranch* b_cells_dep_charge  = cells->Branch("dep_charge" , &v_dep_charge);
+    TBranch* b_cells_energy_loss = cells->Branch("energy_loss", &v_energy_loss);
+    TBranch* b_cells_volume_id   = cells->Branch("volume_id"  , &v_volume_id);
+    TBranch* b_cells_layer_id    = cells->Branch("layer_id"   , &v_layer_id);
+    TBranch* b_cells_module_id   = cells->Branch("module_id"  , &v_module_id);
+    TBranch* b_cells_sector_id   = cells->Branch("sector_id"  , &v_sector_id);
+    TBranch* b_cells_isochrone   = cells->Branch("isochrone"  , &v_isochrone);
+    TBranch* b_cells_skewed      = cells->Branch("skewed"     , &v_skewed);
 
-    auto fillHitsAndCells = [hits, cells, sttGeoData, &sttHitX, &sttHitY, &sttHitZ, &sttHitRefIndexVec, &sttHitVolume_id, &sttHitLayer_id, &sttHitModule_id](RVecD x, RVecD y, RVecD z, RVecI hit_id, RVecI volume_id, RVecI module_id)
+    TBranch* b_truth_hit         = truth->Branch("hit_id"     , &v_hit_id);
+    TBranch* b_truth_x           = truth->Branch("tx"         , &v_tx);
+    TBranch* b_truth_y           = truth->Branch("ty"         , &v_ty);
+    TBranch* b_truth_z           = truth->Branch("tz"         , &v_tz);
+    TBranch* b_truth_t           = truth->Branch("tT"         , &v_tT);
+    TBranch* b_truth_px          = truth->Branch("tpx"        , &v_tpx);
+    TBranch* b_truth_py          = truth->Branch("tpy"        , &v_tpy);
+    TBranch* b_truth_pz          = truth->Branch("tpz"        , &v_tpz);
+    TBranch* b_truth_particle_id = truth->Branch("particle_id", &v_particle_id);
+
+    TBranch* b_particles_particle_id = particles->Branch("particle_id", &v_particle_num);
+    TBranch* b_vx                    = particles->Branch("vx"         , &v_vx);
+    TBranch* b_vy                    = particles->Branch("vy"         , &v_vy);
+    TBranch* b_vz                    = particles->Branch("vz"         , &v_vz);
+    TBranch* b_px                    = particles->Branch("px"         , &v_px);
+    TBranch* b_py                    = particles->Branch("py"         , &v_py);
+    TBranch* b_pz                    = particles->Branch("pz"         , &v_pz);
+    TBranch* b_nhits                 = particles->Branch("nhits"      , &v_nhits);
+    TBranch* b_pdgcode               = particles->Branch("pdgcode"    , &v_pdgcode);
+    TBranch* b_start_time            = particles->Branch("start_time" , &v_start_time);
+    TBranch* b_primary               = particles->Branch("primary"    , &v_primary);
+
+    int numProcSimEvents  = 0;
+    int numProcDigiEvents = 0;
+
+    auto fillSimTrees = 
+    [
+        truth, particles, &numProcSimEvents,
+        &v_hit_id, &v_tx, &v_ty, &v_tz, &v_tT, &v_tpx, &v_tpy, &v_tpz, &v_particle_id, &v_particle_num,
+        &v_vx, &v_vy, &v_vz, &v_px, &v_py, &v_pz, &v_nhits, &v_pdgcode, &v_start_time, &v_primary
+    ]
+    (
+        RVecD iv_tx, RVecD iv_ty, RVecD iv_tz, RVecD iv_tT, RVecD iv_tpx, RVecD iv_tpy, RVecD iv_tpz, RVecI iv_particle_id,
+        RVecD iv_vx, RVecD iv_vy, RVecD iv_vz, RVecD iv_px, RVecD iv_py, RVecD iv_pz, RVecI iv_nhits, RVecI iv_pdgcode, RVecD iv_start_time, RVecI iv_generator_flag
+    )
     {
-        sttHitX = x;
-        sttHitY = y;
-        sttHitZ = z;
-        sttHitRefIndexVec = hit_id;
-        sttHitVolume_id = volume_id;
-        sttHitModule_id = module_id;
+        // Truth
+        v_hit_id.clear();
+        for (int i = 0; i < iv_tx.size(); i++)
+            v_hit_id.push_back(i);
 
-        for(RVecI::iterator moduleID = sttHitModule_id.begin(); moduleID != sttHitModule_id.end(); ++moduleID)
-            sttHitLayer_id.push_back(stoi(sttGeoData.at(*moduleID-1).at(1)));
+        v_tx          = iv_tx;
+        v_ty          = iv_ty;
+        v_tz          = iv_tz;
+        v_tT          = iv_tT;
+        v_tpx         = iv_tpx;
+        v_tpy         = iv_tpy;
+        v_tpz         = iv_tpz;
+        v_particle_id = iv_particle_id;
 
-        hits->Fill();
-        cells->Fill();
+        // Particles
+        v_particle_num.clear();
+        for (int i = 0; i < iv_tx.size(); i++)
+            v_particle_num.push_back(i);
+
+        v_vx         = iv_vx;
+        v_vy         = iv_vy;
+        v_vz         = iv_vz;
+        v_px         = iv_px;
+        v_py         = iv_py;
+        v_pz         = iv_pz;
+        v_nhits      = iv_nhits;
+        v_pdgcode    = iv_pdgcode;
+        v_start_time = iv_start_time;
+
+        v_primary.clear();
+        for(RVecI::iterator generator_flag = iv_generator_flag.begin(); generator_flag != iv_generator_flag.end(); ++generator_flag)
+        {
+            if(*generator_flag == 0)
+                v_primary.push_back(0);
+            else
+                v_primary.push_back(1);
+        }
+
+        truth    ->Fill();
+        particles->Fill();
+
+        numProcSimEvents++;
+        if (numProcSimEvents % 1000 == 0)
+            std::cout << "Processed " << numProcSimEvents << " simulation events" << std::endl;
+    };
+
+    auto fillDigiTrees = 
+    [
+        hits, cells, sttGeoData, &numProcDigiEvents,
+        &v_hit_id, &v_x, &v_y, &v_z, &v_volume_id, &v_layer_id, &v_module_id,
+        &v_dep_charge, &v_energy_loss, &v_sector_id, &v_isochrone, &v_skewed
+    ]
+    (
+        RVecI iv_hit_id, RVecD iv_x, RVecD iv_y, RVecD iv_z, RVecI iv_volume_id, RVecI iv_module_id,
+        RVecD iv_dep_charge, RVecD iv_isochrone
+    )
+    {
+        // Hits
+        v_hit_id    = iv_hit_id;
+        v_x         = iv_x;
+        v_y         = iv_y;
+        v_z         = iv_z;
+        v_volume_id = iv_volume_id;
+        v_module_id = iv_module_id;
+
+        v_layer_id.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_layer_id.push_back(stoi(sttGeoData.at(*moduleID-1).at(1)));
+
+        // Cells
+        v_dep_charge  = iv_dep_charge;
+        v_energy_loss = iv_dep_charge / 1e6;
+
+        v_sector_id.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_sector_id.push_back(stoi(sttGeoData.at(*moduleID-1).at(2)));
+
+        v_isochrone = iv_isochrone;
+
+        v_skewed.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_skewed.push_back(stoi(sttGeoData.at(*moduleID-1).at(10)));
+
+        hits     ->Fill();
+        cells    ->Fill();
+
+        numProcDigiEvents++;
+        if (numProcDigiEvents % 1000 == 0)
+            std::cout << "Processed " << numProcDigiEvents << " digitization events" << std::endl;
     };
     
-    std::vector<std::string> hitParamNames = {"STTHit.fX", "STTHit.fY", "STTHit.fZ","STTHit.fRefIndex", "STTHit.fDetectorID", "STTHit.fTubeID"};
+    std::vector<std::string> simParamNames = 
+    {
+        "STTPoint.fX", "STTPoint.fY", "STTPoint.fZ", "STTPoint.fTime", "STTPoint.fPx", "STTPoint.fPy", "STTPoint.fPz", "STTPoint.fTrackID",
+        "MCTrack.fStartX", "MCTrack.fStartY", "MCTrack.fStartZ", "MCTrack.fPx", "MCTrack.fPy", "MCTrack.fPz", "MCTrack.fPoints", "MCTrack.fPdgCode", "MCTrack.fStartT", "MCTrack.fGeneratorFlags"
+    };
 
-    dfTest.Foreach(fillHitsAndCells, hitParamNames);
+    std::vector<std::string> digiParamNames = 
+    {
+        "STTHit.fRefIndex", "STTHit.fX", "STTHit.fY", "STTHit.fZ", "STTHit.fDetectorID", "STTHit.fTubeID",
+        "STTHit.fDepCharge", "STTHit.fIsochrone",
+    };
 
-    cells->Write();
+    std::cout << "Filling the digi trees..." << std::endl;
+    dfDigi.Foreach(fillDigiTrees, digiParamNames);
 
-    // Initiate the number of events
-    // int nEvents = sttHitRefIndex->size();
+    std::cout << "Filling the sim trees..." << std::endl;
+    dfSim .Foreach(fillSimTrees , simParamNames);
 
-    // for (Long64_t hitNum = 0; hitNum < nEvents; hitNum++)
-    // {
-    //     // Fill the branches
-    // }
+    cells    ->Write();
+    hits     ->Write();
+    truth    ->Write();
+    particles->Write();
     
     outputFile->Write();
     outputFile->Close();
