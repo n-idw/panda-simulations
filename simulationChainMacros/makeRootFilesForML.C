@@ -325,7 +325,7 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
 
         // Particles
         v_particle_num.clear();
-        for (int i = 0; i < iv_tx.size(); i++)
+        for (int i = 0; i < iv_vx.size(); i++)
             v_particle_num.push_back(i);
 
         v_vx         = iv_vx;
