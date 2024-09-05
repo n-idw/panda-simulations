@@ -1,4 +1,19 @@
-#include "makeCSVs.h"
+// ROOT includes
+#include <TROOT.h>
+#include <TFile.h>
+#include <TTree.h>
+#include <ROOT/RDataFrame.hxx>
+
+// C++ includes
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
+#include <algorithm> 
+
+using namespace ROOT;
+
+std::vector<std::vector<std::string>> readGeomFromCsv(const char* geoCsvFileName);
 
 /// @brief Returns the content of a CSV file as a 2d string vector
 /// @param geoCsvFileName Name of the CSV file to read

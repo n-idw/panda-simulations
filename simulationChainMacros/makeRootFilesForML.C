@@ -1,4 +1,44 @@
-#include "makeRootFilesForML.h"
+// ROOT includes
+#include <TROOT.h>
+#include <TFile.h>
+#include <TTree.h>
+#include <ROOT/RDataFrame.hxx>
+#include <ROOT/RDF/Utils.hxx>
+
+// C++ includes
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
+#include <algorithm>
+
+using namespace ROOT;
+
+/// @brief Display a progress bar in the terminal
+/// @param current Current iteration
+/// @param total Total number of iterations
+void displayProgressBar(int current, int total) 
+{
+    // Width of the progress bar
+    const int barWidth = 50;
+    float progress = static_cast<float>(current) / total;
+
+    // Calculate the number of `#` characters to display
+    int pos = barWidth * progress;
+
+    // Output the progress bar
+    std::cout << " ";
+    for (int i = 0; i < barWidth; ++i) {
+        if (i < pos) {
+            std::cout << "\u2588";
+        } else {
+            std::cout << "\u2591";
+        }
+    }
+    std::cout << " " << static_cast<int>(progress * 100) << "%" << " (" << current << "/" << total << ")\r"; // \r returns to the beginning of the line
+    std::cout.flush(); // Flush the output buffer
+}
+
 
 /// @brief Returns the content of a CSV file as a 2d string vector
 /// @param geoCsvFileName Name of the CSV file to read
@@ -49,8 +89,23 @@ std::vector<std::vector<std::string>> readGeomFromCsv(const char* geoCsvFileName
     return geoData;
 }
 
+/// @brief Creates a ROOT file with the data used for machine learning using PandaRoot ROOT output files.
+/// @details This macro reads the simulations and digitization files ROOT files created by the PandaRoot simulations 
+///          chain macros and writes the data relevant for machine learning to a new ROOT file. 
+///          Additional information is extracted using the STT geometry data. If no simulation ROOT file can be found
+///          with the specified prefix, only the digitization data is written to the output file.
+/// @param prefix Path to and name of the simulation and digitization files. E.g. "path/to/root/myData". It does not accept ~ as home directory!
+/// @param outputDir Path to the output directory where a ROOT file called "mlData.root" will be created. It does not accept ~ as home directory!
+/// @return Returns 1 if the ROOT file was created successfully, otherwise 0.
 int makeRootFilesForML(std::string prefix, std::string outputDir)
 {
+    // Check if the prefix or output directory string contains has a "~" as its first character
+    if (prefix[0] == '~' || outputDir[0] == '~')
+    {
+        std::cerr << "ERROR: The prefix and output directory string cannot start with a '~' character!" << std::endl;
+        return 0;
+    }
+
     // Start timer to measure the elapsed time
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -59,34 +114,52 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
     // 2d string vector containing the STT geometry data
     auto sttGeoData = readGeomFromCsv("/home/nikin105/mlProject/data/detectorGeometries/tubePos.csv");
 
-    // Define an vector that contains the tube polarity (0 = straight, 1 = +3° skewed, -1 = -3° skewed)
-    std::vector<int> tubePolarity;
-
-    // Fill the vector according to the values from the geometry data
-    for(int tube = 0; tube < sttGeoData.size(); tube++)
+    // Get the simulation and digitization files
+    std::cout << std::endl;
+    std::cout << "Checking if the files exist with the specified prefix..." << std::endl;
+    
+    // Check if the digitization file exists and get the pndsim tree
+    std::string digiFilePath = prefix + "_digi.root";
+    TFile *digiFile = new TFile(digiFilePath.c_str(),"READ");
+    bool digiFileExists = digiFile->IsOpen();
+    TTree *inputTree;
+    if (digiFileExists)
     {
-        // Check if the tube is straight, skewed by +3° or skewed by -3°
-        if(std::stoi(sttGeoData.at(tube).at(9)) == 0)
-            tubePolarity.push_back(0);
-        else
-            tubePolarity.push_back(std::stoi(sttGeoData.at(tube).at(9))/abs(std::stoi(sttGeoData.at(tube).at(9)))); // +-1 = a / abs(a)
+        std::cout << Form("Digitization file %s found!",digiFilePath.c_str()) << std::endl;
+        inputTree = (TTree*)digiFile->Get("pndsim");
+    }
+    else
+    {
+        std::cout << Form("ERROR: Digitization file %s not found!",digiFilePath.c_str()) << std::endl;
+        std::cout << "ERROR: A digitization file must always be provided!" << std::endl;
+        return 0;
     }
 
-    std::cout << std::endl;
-    std::cout << "Read the simulation and digitization files..." << std::endl;
-    std::cout << "Simulation File: " << prefix + "_sim.root" << std::endl;
-    std::cout << "Digitalization File: " << prefix + "_digi.root" << std::endl;
+    // Check if the simulation file exists and get the pndsim tree and merge it with the digi tree if it exists
+    std::string simFilePath  = prefix + "_sim.root";
+    TFile *simFile = new TFile(simFilePath.c_str(),"READ");
+    bool simFileExists = simFile->IsOpen();
+    TTree *simTree;
+    if (simFileExists)
+    {
+        std::cout << Form("Simulation file %s found!",simFilePath.c_str()) << std::endl;
+        simTree = (TTree*)simFile->Get("pndsim");
+        inputTree->AddFriend(simTree);
+    }
+    else
+    {
+        std::cout << Form("Simulation file %s not found!",simFilePath.c_str()) << std::endl;
+        std::cout << "Only digitization data will be written to the output file." << std::endl;
+    }
 
-    // ROOT::EnableImplicitMT();
-
-    // Create a ROOT data frame for the simulation and digitization files
-    RDataFrame dfSim ("pndsim", prefix + "_sim.root" );
-    RDataFrame dfDigi("pndsim", prefix + "_digi.root");
+    // Create a ROOT data frame for with the input tree
+    RDataFrame df(*inputTree);
 
     std::cout << std::endl;
     std::cout << "Write the data to ROOT file..." << std::endl;
-    std::cout << "Output Directory: " << outputDir << "/mlData.root" << std::endl;
+    std::cout << "Output File: " << outputDir << "/mlData.root" << std::endl;
 
+    // Create the output ROOT file and check if it was created successfully
     TFile* outputFile = new TFile(Form("%s/mlData.root",outputDir.c_str()), "RECREATE");
     if (!outputFile || outputFile->IsZombie()) 
     {
@@ -94,19 +167,27 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
         return 0;
     }
 
-    // Output
+    // Define ROOT double and integer vectors which will be later filled with the data
     RVecD v_x, v_y, v_z, v_dep_charge, v_isochrone, v_energy_loss, 
           v_tx, v_ty, v_tz, v_tT, v_tpx, v_tpy, v_tpz,
           v_vx, v_vy, v_vz, v_px, v_py, v_pz, v_start_time;
     
     RVecI v_hit_id, v_volume_id, v_module_id, v_layer_id, v_sector_id,
-           v_skewed, v_particle_id, v_nhits, v_pdgcode, v_primary, v_particle_num;
+          v_skewed, v_particle_id, v_nhits, v_pdgcode, v_primary, v_particle_num;
 
-    TTree* cells     = new TTree("cells"    , "cells");
-    TTree* hits      = new TTree("hits"     , "hits");
-    TTree* truth     = new TTree("truth"    , "truth");
-    TTree* particles = new TTree("particles", "particles");
+    // Create the trees for the output ROOT file
+    TTree *truth, *particles;
+
+    if(simFileExists)
+    {
+        truth     = new TTree("truth"    , "truth");
+        particles = new TTree("particles", "particles");
+    }
     
+    TTree *cells = new TTree("cells"    , "cells");
+    TTree *hits  = new TTree("hits"     , "hits");
+    
+    // Create the branches for the "hits" tree
     TBranch* b_hits_hit_id    = hits->Branch("hit_id"   , &v_hit_id);
     TBranch* b_hits_x         = hits->Branch("x"        , &v_x);
     TBranch* b_hits_y         = hits->Branch("y"        , &v_y);
@@ -115,6 +196,7 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
     TBranch* b_hits_layer_id  = hits->Branch("layer_id" , &v_layer_id);
     TBranch* b_hits_module_id = hits->Branch("module_id", &v_module_id);
 
+    // Create the branches for the "cells" tree
     TBranch* b_cells_hit_id      = cells->Branch("hit_id"     , &v_hit_id);
     TBranch* b_cells_dep_charge  = cells->Branch("dep_charge" , &v_dep_charge);
     TBranch* b_cells_energy_loss = cells->Branch("energy_loss", &v_energy_loss);
@@ -125,40 +207,106 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
     TBranch* b_cells_isochrone   = cells->Branch("isochrone"  , &v_isochrone);
     TBranch* b_cells_skewed      = cells->Branch("skewed"     , &v_skewed);
 
-    TBranch* b_truth_hit         = truth->Branch("hit_id"     , &v_hit_id);
-    TBranch* b_truth_x           = truth->Branch("tx"         , &v_tx);
-    TBranch* b_truth_y           = truth->Branch("ty"         , &v_ty);
-    TBranch* b_truth_z           = truth->Branch("tz"         , &v_tz);
-    TBranch* b_truth_t           = truth->Branch("tT"         , &v_tT);
-    TBranch* b_truth_px          = truth->Branch("tpx"        , &v_tpx);
-    TBranch* b_truth_py          = truth->Branch("tpy"        , &v_tpy);
-    TBranch* b_truth_pz          = truth->Branch("tpz"        , &v_tpz);
-    TBranch* b_truth_particle_id = truth->Branch("particle_id", &v_particle_id);
+    // Create the branches for the "truth" tree
+    TBranch *b_truth_hit_id, *b_truth_x, *b_truth_y, *b_truth_z, *b_truth_t, *b_truth_px, *b_truth_py, *b_truth_pz, *b_truth_particle_id;
+    
+    if(simFileExists)
+    {
+        b_truth_hit_id      = truth->Branch("hit_id"     , &v_hit_id);
+        b_truth_x           = truth->Branch("tx"         , &v_tx);
+        b_truth_y           = truth->Branch("ty"         , &v_ty);
+        b_truth_z           = truth->Branch("tz"         , &v_tz);
+        b_truth_t           = truth->Branch("tT"         , &v_tT);
+        b_truth_px          = truth->Branch("tpx"        , &v_tpx);
+        b_truth_py          = truth->Branch("tpy"        , &v_tpy);
+        b_truth_pz          = truth->Branch("tpz"        , &v_tpz);
+        b_truth_particle_id = truth->Branch("particle_id", &v_particle_id);
+    }
+    
+    // Create the branches for the "particles" tree
+    TBranch *b_particles_particle_id, *b_vx, *b_vy, *b_vz, *b_px, *b_py, *b_pz, *b_nhits, *b_pdgcode, *b_start_time, *b_primary;
 
-    TBranch* b_particles_particle_id = particles->Branch("particle_id", &v_particle_num);
-    TBranch* b_vx                    = particles->Branch("vx"         , &v_vx);
-    TBranch* b_vy                    = particles->Branch("vy"         , &v_vy);
-    TBranch* b_vz                    = particles->Branch("vz"         , &v_vz);
-    TBranch* b_px                    = particles->Branch("px"         , &v_px);
-    TBranch* b_py                    = particles->Branch("py"         , &v_py);
-    TBranch* b_pz                    = particles->Branch("pz"         , &v_pz);
-    TBranch* b_nhits                 = particles->Branch("nhits"      , &v_nhits);
-    TBranch* b_pdgcode               = particles->Branch("pdgcode"    , &v_pdgcode);
-    TBranch* b_start_time            = particles->Branch("start_time" , &v_start_time);
-    TBranch* b_primary               = particles->Branch("primary"    , &v_primary);
+    if(simFileExists)
+    {
+        b_particles_particle_id = particles->Branch("particle_id", &v_particle_num);
+        b_vx                    = particles->Branch("vx"         , &v_vx);
+        b_vy                    = particles->Branch("vy"         , &v_vy);
+        b_vz                    = particles->Branch("vz"         , &v_vz);
+        b_px                    = particles->Branch("px"         , &v_px);
+        b_py                    = particles->Branch("py"         , &v_py);
+        b_pz                    = particles->Branch("pz"         , &v_pz);
+        b_nhits                 = particles->Branch("nhits"      , &v_nhits);
+        b_pdgcode               = particles->Branch("pdgcode"    , &v_pdgcode);
+        b_start_time            = particles->Branch("start_time" , &v_start_time);
+        b_primary               = particles->Branch("primary"    , &v_primary);
+    }
 
-    int numProcSimEvents  = 0;
-    int numProcDigiEvents = 0;
+    // get the total number of events in the input tree
+    int nEvents = inputTree->GetEntries();
 
-    auto fillSimTrees = 
+    // Event counter for the progress bar
+    int evtNum = 1;
+
+    // Lambda function to fill the "hits" and "cells" ROOT trees
+    auto fillDigiTrees = 
     [
-        truth, particles, &numProcSimEvents,
+        hits, cells, sttGeoData, nEvents, &evtNum,
+        &v_hit_id, &v_x, &v_y, &v_z, &v_volume_id, &v_layer_id, &v_module_id,
+        &v_dep_charge, &v_energy_loss, &v_sector_id, &v_isochrone, &v_skewed
+    ]
+    (
+        RVecI iv_hit_id, RVecD iv_x, RVecD iv_y, RVecD iv_z, RVecI iv_volume_id, RVecI iv_module_id,
+        RVecD iv_dep_charge, RVecD iv_isochrone
+    ) -> void
+    {
+        // Hits
+        v_hit_id    = iv_hit_id;
+        v_x         = iv_x;
+        v_y         = iv_y;
+        v_z         = iv_z;
+        v_volume_id = iv_volume_id;
+        v_module_id = iv_module_id;
+
+        v_layer_id.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_layer_id.push_back(stoi(sttGeoData.at(*moduleID-1).at(1)));
+
+        // Cells
+        v_dep_charge  = iv_dep_charge;
+        v_energy_loss = iv_dep_charge / 1e6;
+
+        v_sector_id.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_sector_id.push_back(stoi(sttGeoData.at(*moduleID-1).at(2)));
+
+        v_isochrone = iv_isochrone;
+
+        v_skewed.clear();
+        for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
+            v_skewed.push_back(stoi(sttGeoData.at(*moduleID-1).at(10)));
+
+        hits ->Fill();
+        cells->Fill();
+
+        displayProgressBar(evtNum, nEvents);
+        evtNum++;
+    };
+
+    // Lambda function to fill the "truth", "particles", "hits", and "cells" ROOT trees
+    auto fillDigiAndSimTrees = 
+    [
+        truth, particles, nEvents, &evtNum,
         &v_hit_id, &v_tx, &v_ty, &v_tz, &v_tT, &v_tpx, &v_tpy, &v_tpz, &v_particle_id, &v_particle_num,
-        &v_vx, &v_vy, &v_vz, &v_px, &v_py, &v_pz, &v_nhits, &v_pdgcode, &v_start_time, &v_primary
+        &v_vx, &v_vy, &v_vz, &v_px, &v_py, &v_pz, &v_nhits, &v_pdgcode, &v_start_time, &v_primary,
+        hits, cells, sttGeoData,
+        &v_x, &v_y, &v_z, &v_volume_id, &v_layer_id, &v_module_id,
+        &v_dep_charge, &v_energy_loss, &v_sector_id, &v_isochrone, &v_skewed
     ]
     (
         RVecD iv_tx, RVecD iv_ty, RVecD iv_tz, RVecD iv_tT, RVecD iv_tpx, RVecD iv_tpy, RVecD iv_tpz, RVecI iv_particle_id,
-        RVecD iv_vx, RVecD iv_vy, RVecD iv_vz, RVecD iv_px, RVecD iv_py, RVecD iv_pz, RVecI iv_nhits, RVecI iv_pdgcode, RVecD iv_start_time, RVecI iv_generator_flag
+        RVecD iv_vx, RVecD iv_vy, RVecD iv_vz, RVecD iv_px, RVecD iv_py, RVecD iv_pz, RVecI iv_nhits, RVecI iv_pdgcode, RVecD iv_start_time, RVecI iv_generator_flag,
+        RVecI iv_hit_id, RVecD iv_x, RVecD iv_y, RVecD iv_z, RVecI iv_volume_id, RVecI iv_module_id,
+        RVecD iv_dep_charge, RVecD iv_isochrone
     )
     {
         // Truth
@@ -202,22 +350,6 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
         truth    ->Fill();
         particles->Fill();
 
-        numProcSimEvents++;
-        if (numProcSimEvents % 1000 == 0)
-            std::cout << "Processed " << numProcSimEvents << " simulation events" << std::endl;
-    };
-
-    auto fillDigiTrees = 
-    [
-        hits, cells, sttGeoData, &numProcDigiEvents,
-        &v_hit_id, &v_x, &v_y, &v_z, &v_volume_id, &v_layer_id, &v_module_id,
-        &v_dep_charge, &v_energy_loss, &v_sector_id, &v_isochrone, &v_skewed
-    ]
-    (
-        RVecI iv_hit_id, RVecD iv_x, RVecD iv_y, RVecD iv_z, RVecI iv_volume_id, RVecI iv_module_id,
-        RVecD iv_dep_charge, RVecD iv_isochrone
-    )
-    {
         // Hits
         v_hit_id    = iv_hit_id;
         v_x         = iv_x;
@@ -244,40 +376,62 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
         for(RVecI::iterator moduleID = v_module_id.begin(); moduleID != v_module_id.end(); ++moduleID)
             v_skewed.push_back(stoi(sttGeoData.at(*moduleID-1).at(10)));
 
-        hits     ->Fill();
-        cells    ->Fill();
+        hits ->Fill();
+        cells->Fill();
 
-        numProcDigiEvents++;
-        if (numProcDigiEvents % 1000 == 0)
-            std::cout << "Processed " << numProcDigiEvents << " digitization events" << std::endl;
+        displayProgressBar(evtNum, nEvents);
+        evtNum++;
     };
     
+    // vector with the names of the needed parameters / columns in the pndsim tree of the "_sim" ROOT file
     std::vector<std::string> simParamNames = 
     {
         "STTPoint.fX", "STTPoint.fY", "STTPoint.fZ", "STTPoint.fTime", "STTPoint.fPx", "STTPoint.fPy", "STTPoint.fPz", "STTPoint.fTrackID",
         "MCTrack.fStartX", "MCTrack.fStartY", "MCTrack.fStartZ", "MCTrack.fPx", "MCTrack.fPy", "MCTrack.fPz", "MCTrack.fPoints", "MCTrack.fPdgCode", "MCTrack.fStartT", "MCTrack.fGeneratorFlags"
     };
 
+    // vector with the names of the needed parameters / columns in the pndsim tree of the "_digi" ROOT file
     std::vector<std::string> digiParamNames = 
     {
         "STTHit.fRefIndex", "STTHit.fX", "STTHit.fY", "STTHit.fZ", "STTHit.fDetectorID", "STTHit.fTubeID",
         "STTHit.fDepCharge", "STTHit.fIsochrone",
     };
 
-    std::cout << "Filling the digi trees..." << std::endl;
-    dfDigi.Foreach(fillDigiTrees, digiParamNames);
+    if(simFileExists)
+    {
+        std::cout << "Filling the \"cells\", \"hits\", \"truth\", and \"particle\" trees..." << std::endl;
+        
+        // Combine the simParamNames and digiParamNames vectors
+        simParamNames.insert(simParamNames.end(), digiParamNames.begin(), digiParamNames.end());
+        
+        // Iterate over the data frame and fill the ROOT trees
+        df.Foreach(fillDigiAndSimTrees , simParamNames);
+        std::cout << std::endl;
+        
+        // Write the trees to the output ROOT file
+        cells    ->Write();
+        hits     ->Write();
+        truth    ->Write();
+        particles->Write();
+    }
+    else
+    {
+        std::cout << "Filling the \"cells\" and \"hits\" trees..." << std::endl;
+        
+        // Iterate over the data frame and fill the ROOT trees
+        df.Foreach(fillDigiTrees, digiParamNames);
+        std::cout << std::endl;
 
-    std::cout << "Filling the sim trees..." << std::endl;
-    dfSim .Foreach(fillSimTrees , simParamNames);
+        // Write the trees to the output ROOT file
+        cells->Write();
+        hits ->Write();
+    }
 
-    cells    ->Write();
-    hits     ->Write();
-    truth    ->Write();
-    particles->Write();
-    
+    // Save and close the output ROOT file
     outputFile->Write();
     outputFile->Close();
 
+    // Stop the timer and print the elapsed time
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << " seconds." << std::endl;
