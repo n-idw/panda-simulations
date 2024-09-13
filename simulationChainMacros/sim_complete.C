@@ -55,8 +55,9 @@ int sim_complete(Int_t nEvents=10, TString prefix="", TString inputGen="", Doubl
 	
 	PndMasterRunSim *fRun = new PndMasterRunSim();
 
-	// Select which generator to use
-	
+	// Select which generator to use	
+	fRun->SetInput(inputGen)
+
 	// EvtGen Generator
 	if (inputGen.Contains("dec")) 
 	{
