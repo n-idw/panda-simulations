@@ -1,72 +1,191 @@
-//****************************************************************************
-//*                   This file is part of PandaRoot.                        *
-//*                                                                          *
-//*            PandaRoot is distributed under the terms of the               *
-//*              GNU General Public License (GPL) version 3,                 *
-//*                 copied verbatim in the file "LICENSE".                   *
-//*                                                                          *
-//*  Copyright (C) 2006 - 2024 FAIR GmbH and copyright holders of PandaRoot  *
-//*     The copyright holders are listed in the file "COPYRIGHTHOLDERS".     *
-//*               The authors are listed in the file "AUTHORS".              *
-//****************************************************************************
+// c++ includes
+#include <iostream>
 
-// Macro for running Panda simulation  with Geant3  or Geant4 (M. Al-Turany)
-// This macro is supposed to run the full simulation of the panda detector
-// to run the macro:
-// root  sim_complete.C  or in root session root>.x  sim_complete.C
-// to run with different options:(e.g more events, different momentum, Geant4)
-// root  sim_complete.C"(100, "TGeant4",2)"
+// ROOT includes
+#include <TROOT.h>
+#include <TRandom.h>
 
-int sim_complete(Int_t nEvents = 100, TString SimEngine = "TGeant3", Double_t BeamMomentum = 6.231552, TString prefix = "../data/evtcomplete", TString options = "")
-{ 
-  //-----User Settings:------------------------------------------------------
-  //  gDebug=5;
-  TString parAsciiFile = "all.par";
+// FairRoot includes
+#include <FairBoxGenerator.h>
+#include <FairLogger.h>
 
-  // TString inputGenerator =
-  // EvtGen -> "xxxxxxxx.dec" (parses dec-file for initial particle) or "xxxxxxx.dec:initial_particle"
-  // DPM    -> "dpm_xxxxx"
-  // FTF    -> "ftf_xxxxx"
-  // BOX    -> "box:type(pdgcode,mult):p(min,max):tht(min,max):phi(min,max)"
-  // PIPI   -> "pipi:cosTheta(min,max)"
-  // LEP    -> "leplep:pid(value):gegm(value):cosTheta(min,max)"
+// PandaRoot includes
+// #include <PndMasterRunSim.h>
+#include <PndEvtGenDirect.h>
+#include <PndEmcGeoPar.h>
 
-  // TString inputGenerator = "psi2s_Jpsi2pi_Jpsi_mumu.dec";
-  // TString inputGenerator = "ftf";
-  // TString inputGenerator = "ftf";
-  // TString inputGenerator = "box:type(211,1):p(1,1):tht(10,120):phi(0,360)";
-  TString inputGenerator = "box:type(211,10):p(0.5,1.5):tht(5,90):phi(0,360)";
+int sim_complete(Int_t nEvents=10, TString prefix="", TString inputGen="", Double_t pBeam=1.642, Int_t seed=42) 
+{
+	// Print the input parameters
+	std::cout << std::endl;
+	LOG(info) << "========== Input Parameters ==========";
+	LOG(info) << "nEvents: " 	<< nEvents;
+	LOG(info) << "prefix: " 	<< prefix.Data();
+	LOG(info) << "inputGen: " 	<< inputGen.Data();
+	LOG(info) << "pBeam: " 		<< pBeam;
+	LOG(info) << "seed: " 		<< seed;
+	std::cout << std::endl;
+	
+	//-------------------------------------------------------------------------//
+	//                               User Settings                             //
+	//-------------------------------------------------------------------------//
 
-  //-------------------------------------------------------------------------
-  // -----   Create the Simulation run manager ------------------------------
-  PndMasterRunSim *fRun = new PndMasterRunSim();
-  fRun->SetInput(inputGenerator);
-  fRun->SetName(SimEngine);
-  fRun->SetParamAsciiFile(parAsciiFile);
-  fRun->SetNumberOfEvents(nEvents);
-  fRun->SetBeamMom(BeamMomentum);
-  fRun->SetStoreTraj(kTRUE);
-  fRun->SetOptions(options);
-  // -----  Initialization   ------------------------------------------------
-  fRun->Setup(prefix);
-  // -----   Geometry   -----------------------------------------------------
-  fRun->CreateGeometry();
-  // -----   Event generator   ----------------------------------------------
-  fRun->SetGenerator();
+	TString parAsciiFile = "all.par"; // File that contains all detector parameters
 
-  // -----   Event filter setup   -------------------------------------------
-  FairFilteredPrimaryGenerator *primGen = fRun->GetFilteredPrimaryGenerator();
-  primGen->SetVerbose(0);
-  // ---- Example configuration for the event filter ------------------------
-  // FairEvtFilterOnSingleParticleCounts* chrgFilter = new FairEvtFilterOnSingleParticleCounts("chrgFilter");
-  // chrgFilter->AndMinCharge(4, FairEvtFilter::kCharged);
-  // primGen->AndFilter(chrgFilter);
+    TString decayMode = "UserDecayConfig.C";
+		
+	// TString inputGenerator =
+	// EvtGen -> "xxxxxxxx.dec" (parses dec-file for initial particle) or "xxxxxxx.dec:initial_particle"
+	// DPM    -> "dpm_xxxxx"
+	// FTF    -> "ftf_xxxxx"
+	// BOX    -> "box:type(pdgcode,mult):p(min,max):tht(min,max):phi(min,max)"
+	// PIPI   -> "pipi:cosTheta(min,max)"
+	// LEP    -> "leplep:pid(value):gegm(value):cosTheta(min,max)"
 
-  // -----   Add tasks   ----------------------------------------------------
-  fRun->AddSimTasks();
-  // -----   Intialise and run   --------------------------------------------
-  fRun->Init();
-  fRun->Run(nEvents);
-  fRun->Finish();
-  return 0;
+	// Examples:
+	// TString inputGenerator = "psi2s_Jpsi2pi_Jpsi_mumu.dec";
+	// TString inputGenerator = "ftf";
+	// TString inputGenerator = "ftf";
+	// TString inputGenerator = "box:type(211,1):p(1,1):tht(10,120):phi(0,360)";
+	
+	// TString decayMode1 = "UserDecayConfig1.C";// only for Xibar_Xi1820.dec
+	// TString decayMode2 = "UserDecayConfig2.C";// only for llbar_fwp_1_642GeV.dec
+	
+	//--------------------------------------------------------------//
+	//             Create the Simulation Run Manager                //
+	//--------------------------------------------------------------//
+	
+	PndMasterRunSim *fRun = new PndMasterRunSim();
+
+	// Select which generator to use	
+	// fRun->SetInput(inputGen);
+
+	// EvtGen Generator
+	if (inputGen.Contains("dec")) 
+	{
+		LOG(info) << "Using the EvtGen generator...";
+		std::ifstream decayFile(inputGen.Data());
+		if (!decayFile) 
+		{
+			LOG(ERROR) << "File " << inputGen.Data() << " not found!";
+			return 1;
+		}
+		LOG(info) << "Input generator: " << inputGen.Data();
+        fRun->SetUserDecay(decayMode);
+		fRun->SetInput(inputGen);
+	}
+		
+	if (inputGen.Contains("EvtGenFWP")) 
+	{    
+		LOG(info) << "Using EvtGen generator with llbar_fwp.dec...";
+		
+		inputGen = "llbar_fwp.dec";
+		PndEvtGenDirect* evtGenDirect = new PndEvtGenDirect("pbarpSystem", inputGen.Data(), pBeam);
+		evtGenDirect->SetStoreTree(kFALSE);
+		fRun->AddGenerator(evtGenDirect);
+	}
+	
+	if (inputGen.Contains("EvtGenBKG")) 
+	{
+		LOG(info) << "Using EvtGen generator with llbar_bkg.dec ...";
+		
+		inputGen = "llbar_bkg.dec";
+		PndEvtGenDirect* evtGenDirect = new PndEvtGenDirect("pbarpSystem", inputGen.Data(), pBeam);
+		evtGenDirect->SetStoreTree(kFALSE);
+		fRun->AddGenerator(evtGenDirect);
+	}
+	
+	// Single Box Generator
+	if (inputGen.Contains("SBoxGEN")) 
+	{
+		LOG(info) << " Using a single BoxGenerator...";
+		
+		FairBoxGenerator* boxGen = new FairBoxGenerator(13, 5);    // 13 = muon; 5 = multiplicity
+		boxGen->SetName("boxGen5mum");							   // Name of the generator for the log file
+		boxGen->SetPRange(1.0, 3.0);                               // GeV/c (1.0 to 3.0)
+		boxGen->SetPhiRange(0., 360.);                             // Azimuth angle range [degree]
+		boxGen->SetThetaRange(22., 140.);                          // Polar angle in lab system range [degree], STT
+		boxGen->SetXYZ(0., 0., 0.);                                // Set vertex position in [cm]
+		fRun->AddGenerator(boxGen);
+	}
+	
+	// Double Box Generator
+	if (inputGen.Contains("DBoxGEN")) 
+	{
+		LOG(info) << "Using Double BoxGenerator...";
+		
+		// 1st BoxGenerator
+		FairBoxGenerator* boxGen1 = new FairBoxGenerator(13, 5);    // 13=muon; 3122=Lambda; multiplicity
+		boxGen1->SetName("boxGen for 5 mu-");				// Name of the generator for the log file
+		boxGen1->SetPRange(0.1, 1.5);                               // Momentum Range: 100 MeV to 1.5 GeV
+		boxGen1->SetPhiRange(0., 360.);                             // Azimuth angle range [degree]
+		boxGen1->SetThetaRange(22., 140.);                          // Polar angle in lab system range [degree], STT
+		//boxGen1->SetThetaRange(3., 150.);                         // Polar angle in lab system range [degree], CTS
+		boxGen1->SetXYZ(0., 0., 0.);                                // Set vertex position in [cm]
+		fRun->AddGenerator(boxGen1);
+
+		// 2nd BoxGenerator
+		FairBoxGenerator* boxGen2 = new FairBoxGenerator(-13, 5);	// -13=antimuon; -3122=anti-Lambda; multiplicity
+		boxGen2->SetName("boxGen for 5 mu+");						// Name of the generator for the log file
+		boxGen2->SetPRange(0.1, 1.5);                          		// Momentum range: 100 MeV to 1.5 GeV
+		boxGen2->SetPhiRange(0., 360.);                          	// Azimuth angle range [degree]
+		boxGen2->SetThetaRange(22., 140.);                       	// Polar angle in lab system range [degree], STT
+		//boxGen2->SetThetaRange(3., 150.);                      	// Polar angle in lab system range [degree], CTS
+		boxGen2->SetXYZ(0., 0., 0.);                             	// Set vertex position in [cm]
+		fRun->AddGenerator(boxGen2);
+	 
+	}
+	
+	// Background Studies
+	// It is a cocktail of everything from pbarp interaction
+	
+	if (inputGen.Contains("dpm")) 
+	{
+		LOG(info) << "Using the DPM generator...";
+		fRun->SetInput(inputGen);
+	}
+	
+	if (inputGen.Contains("ftf")) 
+	{
+		LOG(info) << "Using the FTF generator...";
+		fRun->SetInput(inputGen);
+	}
+	
+	if (inputGen.Contains("pythia8")) 
+	{
+		LOG(info) << "Using the Pythia8 generator...";
+		fRun->SetInput(inputGen);
+	}    
+	
+	// other settings for the generator and propagator
+	fRun->SetName("TGeant4");               // Engine for the detector simulation
+	fRun->SetParamAsciiFile(parAsciiFile);  // Name of the Ascii file that contains all the detector parameters (It automatically searches in the $VMCWORKDIR)
+	fRun->SetNumberOfEvents(nEvents);       // Number of events to be generated
+	fRun->SetBeamMom(pBeam);                // Beam momentum of the anti-protons in GeV/c
+	fRun->SetStoreTraj(kTRUE);              // Store the trajectories of the particles
+	//fRun->SetUserDecay(decayMode);        // Force FairRoot for a certain decay chains (whatever that means)
+	
+	// -----  Initialization   ------------------------------------------------
+	LOG(info) << "Setting up the run...";
+	fRun->Setup(prefix);
+
+	// -----   Geometry   -----------------------------------------------------
+	LOG(info) << "Creating the geometry...";
+	fRun->CreateGeometry();
+
+	// -----   Event generator   ----------------------------------------------
+  	fRun->SetGenerator();
+
+	// -----   Add tasks   ----------------------------------------------------
+	LOG(info) << "Adding simulation tasks...";
+	fRun->AddSimTasks();
+	
+	// -----   Intialise and run   --------------------------------------------
+	LOG(info) << "Initialising and running the simulation...";
+
+	fRun->Init(); // There still seem to be some issues with initializing some EMC functions when the container is loaded
+	fRun->Run(nEvents); 
+	fRun->Finish();
+
+	return 0;
 }

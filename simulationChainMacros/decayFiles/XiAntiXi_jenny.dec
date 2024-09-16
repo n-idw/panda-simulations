@@ -1,0 +1,15 @@
+noPhotos
+
+Decay pbarpSystem
+1.0 anti-Xi+ Xi-   PHSP;
+Enddecay
+
+Decay anti-Xi+
+Enddecay
+
+Decay Xi-
+Enddecay
+
+End
+
+
