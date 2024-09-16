@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# ROOT files
+*.root
+
+# log files
+*.log
