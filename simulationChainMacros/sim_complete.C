@@ -71,7 +71,7 @@ int sim_complete(Int_t nEvents=10, TString prefix="", TString inputGen="", Doubl
 			return 1;
 		}
 		LOG(info) << "Input generator: " << inputGen.Data();
-        fRun->SetUserDecay(decayMode);
+        // fRun->SetUserDecay(decayMode);
 		fRun->SetInput(inputGen);
 	}
 		
