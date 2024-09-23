@@ -18,9 +18,9 @@
 
 # Make a temporary directory for the files during the simulation steps
 tmpRootDir=/tmp/$SLURM_JOB_NAME/$SLURM_ARRAY_TASK_ID/root
-tmpCvsDir=/tmp/$SLURM_JOB_NAME/$SLURM_ARRAY_TASK_ID/cvs
+tmpCsvDir=/tmp/$SLURM_JOB_NAME/$SLURM_ARRAY_TASK_ID/csv
 mkdir -p $tmpRootDir
-mkdir -p $tmpCvsDir
+mkdir -p $tmpCsvDir
 
 # Prefix for the in- and output root files
 prefix=$tmpRootDir/${SLURM_JOB_NAME}_${SLURM_ARRAY_TASK_ID}
@@ -31,7 +31,7 @@ prefix=$tmpRootDir/${SLURM_JOB_NAME}_${SLURM_ARRAY_TASK_ID}
 
 echo ""
 echo "Temp Directory (root)	: $tmpRootDir"
-echo "Temp Directory (cvs)	: $tmpCvsDir"
+echo "Temp Directory (csv)	: $tmpCsvDir"
 echo "Output Directory		: $OUTPUT_DIR"
 echo "Number of Events		: $NUM_GEN_EVENTS"
 echo "Prefix     		: $prefix"
@@ -62,7 +62,7 @@ root -l -b -q ../simulationChainMacros/digi_complete.C\($NUM_GEN_EVENTS,\"$prefi
 
 # Transfers the hit and track information into CVS files that are readable for the ML pipeline
 #echo "Started CSV Generator..."
-#root -l -b -q ../simulationChainMacros/data_complete.C\($NUM_GEN_EVENTS,\"$prefix\",\"$tmpCvsDir\",\"$CVS_GEN_FLAG\"\)
+#root -l -b -q ../simulationChainMacros/data_complete.C\($NUM_GEN_EVENTS,\"$prefix\",\"$tmpCsvDir\",\"$CVS_GEN_FLAG\"\)
 
 echo "Finished All Simulation Tasks"
 echo ""
@@ -74,9 +74,9 @@ echo ""
 # Move the root and csv files out of the temporary directory
 taskOutputDir=$OUTPUT_DIR/$SLURM_JOB_NAME/$SLURM_ARRAY_TASK_ID
 mkdir -p $taskOutputDir
-echo "Moving files from $tmpRootDir and $tmpCvsDir to $taskOutputDir"
+echo "Moving files from $tmpRootDir and $tmpCsvDir to $taskOutputDir"
 mv $tmpRootDir $taskOutputDir
-mv $tmpCvsDir $taskOutputDir
+mv $tmpCsvDir $taskOutputDir
 echo "Done"
 echo " "
 
