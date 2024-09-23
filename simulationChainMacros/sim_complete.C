@@ -32,7 +32,7 @@ int sim_complete(Int_t nEvents=10, TString prefix="", TString inputGen="", Doubl
 
 	TString parAsciiFile = "all.par"; // File that contains all detector parameters
 
-    TString decayMode = "UserDecayConfig.C";
+	TString decayMode = "UserDecayConfig.C";
 		
 	// TString inputGenerator =
 	// EvtGen -> "xxxxxxxx.dec" (parses dec-file for initial particle) or "xxxxxxx.dec:initial_particle"
@@ -71,7 +71,7 @@ int sim_complete(Int_t nEvents=10, TString prefix="", TString inputGen="", Doubl
 			return 1;
 		}
 		LOG(info) << "Input generator: " << inputGen.Data();
-        // fRun->SetUserDecay(decayMode);
+     		fRun->SetUserDecay(decayMode);
 		fRun->SetInput(inputGen);
 	}
 		
