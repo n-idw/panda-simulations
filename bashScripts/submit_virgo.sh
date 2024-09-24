@@ -12,6 +12,7 @@
 #SBATCH --cpus-per-task=1
 
 # Activate the PandaRoot environment
+# shellcheck source=/dev/null
 source /lustre/panda/ninderw/PandaRoot/bin/config.sh -p
 
 # Output directory for the simulation, cvs and log files
