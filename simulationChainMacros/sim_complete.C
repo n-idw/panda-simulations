@@ -35,7 +35,7 @@ int sim_complete(Int_t nEvents = 10, TString prefix = "", TString inputGen = "",
 
     TString parAsciiFile = "all.par"; // File that contains all detector parameters
 
-    TString decayMode = "UserDecayConfig.C";
+    TString decayMode = "UserDecayConfig_jenny.C";
 
     //--------------------------------------------------------------//
     //             Create the Simulation Run Manager                //
