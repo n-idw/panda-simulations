@@ -92,34 +92,26 @@ std::vector<std::vector<std::string>> readGeomFromCsv(const char* geoCsvFileName
 /// @brief Creates a ROOT file with the data used for machine learning using PandaRoot ROOT output files.
 /// @details This macro reads the simulations and digitization files ROOT files created by the PandaRoot simulations 
 ///          chain macros and writes the data relevant for machine learning to a new ROOT file. 
-///          Additional information is extracted using the STT geometry data. If no simulation ROOT file can be found
-///          with the specified prefix, only the digitization data is written to the output file.
-/// @param prefix Path to and name of the simulation and digitization files. E.g. "path/to/root/myData". It does not accept ~ as home directory!
+///          Additional information is extracted using the STT geometry data.
+/// @param simFilePath Path to the simulation ROOT file.
+/// @param digiFilePath Path to the digitalization ROOT file.
 /// @param outputDir Path to the output directory where a ROOT file called "mlData.root" will be created. It does not accept ~ as home directory!
 /// @return Returns 1 if the ROOT file was created successfully, otherwise 0.
-int makeRootFilesForML(std::string prefix, std::string outputDir)
+int makeRootFilesForML(std::string simFilePath, std::string digiFilePath, std::string outputDir)
 {
-    // Check if the prefix or output directory string contains has a "~" as its first character
-    if (prefix[0] == '~' || outputDir[0] == '~')
-    {
-        std::cerr << "ERROR: The prefix and output directory string cannot start with a '~' character!" << std::endl;
-        return 0;
-    }
-
     // Start timer to measure the elapsed time
     auto start = std::chrono::high_resolution_clock::now();
 
     std::cout << "Get the STT geometry data..." << std::endl;
 
     // 2d string vector containing the STT geometry data
-    auto sttGeoData = readGeomFromCsv("/home/nikin105/mlProject/data/detectorGeometries/tubePos.csv");
+    auto sttGeoData = readGeomFromCsv("/mlProject/data/detectorGeometries/tubePos.csv");
 
     // Get the simulation and digitization files
     std::cout << std::endl;
-    std::cout << "Checking if the files exist with the specified prefix..." << std::endl;
+    std::cout << "Checking if the input files exist..." << std::endl;
     
     // Check if the digitization file exists and get the pndsim tree
-    std::string digiFilePath = prefix + "_digi.root";
     TFile *digiFile = new TFile(digiFilePath.c_str(),"READ");
     bool digiFileExists = digiFile->IsOpen();
     TTree *inputTree;
@@ -136,7 +128,6 @@ int makeRootFilesForML(std::string prefix, std::string outputDir)
     }
 
     // Check if the simulation file exists and get the pndsim tree and merge it with the digi tree if it exists
-    std::string simFilePath  = prefix + "_sim.root";
     TFile *simFile = new TFile(simFilePath.c_str(),"READ");
     bool simFileExists = simFile->IsOpen();
     TTree *simTree;
